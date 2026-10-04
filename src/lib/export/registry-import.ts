@@ -9,11 +9,14 @@
  * 'drop')跳过该行;portals 等 JSON 自引用走两阶段(先建全表映射,再回填重映射)。
  */
 import Dexie from 'dexie'
+import { assertExistingScriptSourceV1 } from '../screenplay/existing-script-source'
+import { serializeExistingScreenplayV1 } from '../screenplay/existing-script-parser'
 import { db } from '../db/schema'
 import { PROJECT_TABLES } from '../registry/project-tables'
 import { isPortableResourceUidV1 } from '../context-gateway/resource-uid'
 import { remapWorldPortalTargets } from '../utils/world-portals'
 import { transactionTablesFor } from '../registry/lifecycle'
+import type { AdaptationSourceUnit, ScreenplayScene } from '../types'
 import type { ExportRefRemap, TableSpec } from '../registry/types'
 import type { ProjectExportData } from './json-export'
 import { CURRENT_BACKUP_VERSION } from './backup-trust'
@@ -852,7 +855,7 @@ async function validateCurrentBackup(data: ProjectExportData): Promise<void> {
       throw new Error(`[deriveImport] Work 分类非法：${error instanceof Error ? error.message : String(error)}`)
     }
   }
-  validateAdaptationBackup(value)
+  await validateAdaptationBackup(value)
   validateScreenplayBackup(value)
   validateComicStoryboardBackup(value)
   validateComicMediaBackup(value)
@@ -1025,7 +1028,7 @@ async function validateMotionDramaBackup(value: Record<string, any>): Promise<vo
   }
 }
 
-function validateAdaptationBackup(value: Record<string, any>): void {
+async function validateAdaptationBackup(value: Record<string, any>): Promise<void> {
   if (!Array.isArray(value.adaptationProjects) || !Array.isArray(value.adaptationSourceUnits)
     || !Array.isArray(value.adaptationSourceFacts) || !Array.isArray(value.adaptationCausalEdges)
     || !Array.isArray(value.adaptationDecisions)) {
@@ -1066,7 +1069,11 @@ function validateAdaptationBackup(value: Record<string, any>): void {
     const identity = `${row._adaptationProjectExportId}:${row.manifestVersion}:${row.sourceUnitKey}`
     if (unique.has(identity)) throw new Error('[deriveImport] v6 来源单元 stable key 重复')
     unique.add(identity)
-    if (row.sourceKind === 'work') {
+    const owner = roots.get(row._adaptationProjectExportId)!
+    if ((owner.sourceSelectionMode === 'existing-script') !== (row.sourceKind === 'screenplay') || (row.sourceKind !== 'screenplay' && row.sourceContent !== undefined)) throw new Error('[deriveImport] 剧本原文来源模式非法')
+    if (row.sourceKind === 'screenplay') {
+      if (row._sourceOutlineExportId != null || row._sourceChapterExportId != null) throw new Error('[deriveImport] 剧本原文不得关联小说章节')
+    } else if (row.sourceKind === 'work') {
       if (row._sourceOutlineExportId != null || row._sourceChapterExportId != null) throw new Error('[deriveImport] v6 work 来源单元引用组合非法')
     } else if (row.sourceKind === 'outline-node') {
       if (row._sourceChapterExportId != null) throw new Error('[deriveImport] v6 outline 来源单元引用组合非法')
@@ -1078,6 +1085,15 @@ function validateAdaptationBackup(value: Record<string, any>): void {
   }
   for (const [rootId, root] of roots) {
     const activeUnits = (value.adaptationSourceUnits as Record<string, any>[]).filter(row => row._adaptationProjectExportId === rootId && row.manifestVersion === root.activeSourceManifestVersion)
+    if (root.sourceSelectionMode === 'existing-script') {
+      const allUnits = (value.adaptationSourceUnits as Record<string, any>[]).filter(row => row._adaptationProjectExportId === rootId)
+      const localRoot = { ...root, id: rootId, projectId: 1, workId: root._workExportId, sourceWorkId: null, sourceOutlineRootId: null, sourceStartChapterId: null, sourceEndChapterId: null } as AdaptationProject
+      const localUnits = allUnits.map(row => ({ ...row, adaptationProjectId: row._adaptationProjectExportId, projectId: 1, workId: row._workExportId, sourceOutlineNodeId: null, sourceChapterId: null }))
+      const original = await assertExistingScriptSourceV1(localRoot, localUnits as AdaptationSourceUnit[])
+      const scenes = (value.screenplayScenes as (ScreenplayScene & Record<string, any>)[]).filter(row => row._adaptationProjectExportId === rootId).sort((a, b) => a.order - b.order)
+      serializeExistingScreenplayV1(original, scenes)
+      continue
+    }
     if (activeUnits.filter(row => row.sourceKind === 'work').length !== 1) throw new Error('[deriveImport] v6 活动 manifest 必须恰有一个 work 单元')
   }
 
@@ -1236,7 +1252,9 @@ function validateScreenplayBackup(value: Record<string, any>): void {
       if (block?.characterId != null) throw new Error('[deriveImport] v7 剧本块泄露本地角色 ID')
     })
     const section = root.plan?.sections?.find((item: Record<string, unknown>) => item.stableKey === row.planSectionKey)
-    if (!section || root.planSourceManifestVersion !== root.activeSourceManifestVersion) throw new Error('[deriveImport] v7 剧本场景计划引用无效')
+    if (root.sourceSelectionMode === 'existing-script') {
+      if (!['draft', 'reviewed', 'locked'].includes(row.status) || !Number.isInteger(row.revision) || row.revision < 1 || row.planSectionKey !== '' || row.sourceReviewManifestVersion !== 1 || row._sourceUnitExportIds.length !== 1 || row.blocks.some((block: ScreenplayBlock) => !block.source || (block.type === 'character' && (block.extension || block.dualDialogue))) || row._blockCharacterExportIds.some((id: unknown) => id != null)) throw new Error('[deriveImport] 已有剧本来源或 cue 结构非法')
+    } else if (!section || root.planSourceManifestVersion !== root.activeSourceManifestVersion || row.blocks.some((block: ScreenplayBlock) => block.source !== undefined)) throw new Error('[deriveImport] v7 剧本场景计划或来源引用无效')
   }
   const reviewIdentity = new Set<string>()
   for (const row of value.screenplayReviewIssues as Record<string, any>[]) {

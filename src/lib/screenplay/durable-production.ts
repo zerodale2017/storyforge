@@ -313,6 +313,7 @@ async function append(scope: WorkspaceScope, snapshot: AgentRunSnapshotV1, type:
 async function rootFor(scope: WorkspaceScope, adaptationProjectId: number) {
   const root = await db.adaptationProjects.get(adaptationProjectId)
   if (!root?.id || root.medium !== 'screenplay' || root.projectId !== scope.projectId || root.worldId !== scope.worldId || root.workId !== scope.workId) throw new Error('[screenplay-run] 剧本改编不存在或越界')
+  if (root.sourceSelectionMode === 'existing-script') throw new Error('[screenplay] 已有剧本 Phase 1 仅支持导入与手动修订，尚未开放 AI 生产或审校')
   return root
 }
 

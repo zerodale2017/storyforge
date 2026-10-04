@@ -1,3 +1,4 @@
+import { assertExistingScriptSourceV1 } from '../screenplay/existing-script-source'
 import Dexie, { type Table } from 'dexie'
 import { nanoid } from 'nanoid'
 import { db } from '../db/schema'
@@ -560,6 +561,15 @@ export async function readAdaptationSourceContent(input: {
   if (!input.sourceUnitKeys.length || input.sourceUnitKeys.length > 64) throw new Error('[adaptation] 来源单元选择数量非法')
   if (new Set(input.sourceUnitKeys).size !== input.sourceUnitKeys.length) throw new Error('[adaptation] 来源单元 key 重复')
   if (input.sourceUnitKeys.some(key => !/^asu_[A-Za-z0-9_-]{8,64}$/.test(key))) throw new Error('[adaptation] 来源单元 key 非法')
+  if (root.sourceSelectionMode === 'existing-script') {
+    if (input.manifestVersion !== root.activeSourceManifestVersion) throw new Error('[screenplay-import] 原文版本已变化')
+    const units = await db.adaptationSourceUnits.where('adaptationProjectId').equals(root.id!).toArray()
+    const content = await assertExistingScriptSourceV1(root, units)
+    if (input.sourceUnitKeys.length !== 1 || input.sourceUnitKeys[0] !== units[0].sourceUnitKey) throw new Error('[screenplay-import] 来源单元不在指定 manifest')
+    const unit = units[0]
+    return { adaptationProjectId: root.id!, manifestVersion: 1, sourceManifestHash: root.activeSourceManifestHash,
+      units: [{ sourceUnitKey: unit.sourceUnitKey, sourceKind: unit.sourceKind, label: unit.label, content, contentHash: unit.contentHash, wordCount: unit.wordCount }] }
+  }
   if (root.lineageMode !== 'linked' || root.sourceWorkId == null) throw new Error('[adaptation] 来源小说已断开，不能读取正文')
   const sourceWork = await db.works.get(root.sourceWorkId)
   if (!sourceWork || sourceWork.projectId !== root.projectId || sourceWork.worldId !== root.worldId || effectiveWorkKind(sourceWork) !== 'novel') {
@@ -660,6 +670,15 @@ function compareManifests(stored: AdaptationSourceUnit[], current: AdaptationSou
 export async function inspectAdaptationFreshness(adaptationProjectId: number): Promise<AdaptationFreshnessReport> {
   const root = await db.adaptationProjects.get(adaptationProjectId)
   if (!root) throw new Error('[adaptation] 改编项目不存在')
+  if (root.sourceSelectionMode === 'existing-script') {
+    const units = await db.adaptationSourceUnits.where('adaptationProjectId').equals(root.id!).toArray()
+    try {
+      await assertExistingScriptSourceV1(root, units)
+      return { status: 'unchanged', activeManifestVersion: 1, storedHash: root.activeSourceManifestHash, currentHash: root.activeSourceManifestHash, changes: [] }
+    } catch {
+      return { status: units.length ? 'changed' : 'missing', activeManifestVersion: root.activeSourceManifestVersion, storedHash: root.activeSourceManifestHash, currentHash: null, changes: [{ sourceUnitKey: units[0]?.sourceUnitKey ?? 'screenplay', kind: 'missing', label: '冻结剧本原文不可用' }] }
+    }
+  }
   if (root.lineageMode === 'detached') return { status: 'detached', activeManifestVersion: root.activeSourceManifestVersion, storedHash: root.activeSourceManifestHash, currentHash: null, changes: [] }
   const activeUnits = await listActiveSourceUnits(adaptationProjectId)
   if (root.sourceWorkId == null) return { status: 'missing', activeManifestVersion: root.activeSourceManifestVersion, storedHash: root.activeSourceManifestHash, currentHash: null, changes: [{ sourceUnitKey: 'work', kind: 'missing', label: '来源小说已删除' }] }
@@ -837,6 +856,7 @@ async function updateAdaptationRootContent(
     const root = await db.adaptationProjects.get(adaptationProjectId)
     if (!root) throw new Error('[adaptation] 改编项目不存在')
     if (root.revision !== expectedRevision) throw new Error('[adaptation] 改编项目已变化，请刷新后重试')
+    if (root.sourceSelectionMode === 'existing-script') throw new Error('[adaptation] 已有剧本不使用小说改编工作流')
     const next = mutate(root)
     const updatedAt = Date.now()
     next.revision = root.revision + 1

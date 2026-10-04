@@ -201,6 +201,7 @@ const PROJECT_TABLE_REGISTRATIONS: ProjectTableRegistration[] = [
     },
     note: 'ADAPT-CORE-1 改编公共根；唯一目标 Work 授权跨 Work 来源读取，Brief/Plan 为原生结构化对象' },
 
+  // Existing-script sourceContent is an immutable snapshot with no additional local references.
   { table: db.adaptationSourceUnits, name: 'adaptationSourceUnits', owner: 'project', exportable: true, exportIdField: true,
     domainOwner: { allowed: ['work'], defaultOwner: 'work', locator: { kind: 'parent', owner: 'work', table: 'adaptationProjects', field: 'adaptationProjectId' } },
     exportRemap: [
@@ -210,7 +211,7 @@ const PROJECT_TABLE_REGISTRATIONS: ProjectTableRegistration[] = [
       { field: 'sourceChapterId', remapVia: 'chapters', exportAs: '_sourceChapterExportId' },
     ],
     defaults: { summary: '', wordCount: 0, sourceUpdatedAt: null },
-    note: 'ADAPT-CORE-1 追加式不可变来源清单；不复制全文，稳定 key 和 hash 跨备份保留' },
+    note: 'ADAPT-CORE-1 追加式不可变来源清单；小说来源不复制全文，已有剧本保存原文快照，稳定 key 和 hash 跨备份保留' },
 
   { table: db.adaptationSourceFacts, name: 'adaptationSourceFacts', owner: 'project', exportable: true, exportIdField: true,
     domainOwner: { allowed: ['work'], defaultOwner: 'work', locator: { kind: 'parent', owner: 'work', table: 'adaptationProjects', field: 'adaptationProjectId' } },
@@ -266,6 +267,7 @@ const PROJECT_TABLE_REGISTRATIONS: ProjectTableRegistration[] = [
     defaults: { blockId: null, sourceUnitKeys: [], status: 'open' },
     note: 'SCREEN-PRO-1 可定位到 scene/block/revision 的来源、连续性、戏剧性和格式审查问题' },
 
+  // Imported block source spans reference the snapshot text, never local numeric IDs.
   { table: db.screenplayScenes, name: 'screenplayScenes', owner: 'project', exportable: true, exportIdField: true,
     domainOwner: { allowed: ['work'], defaultOwner: 'work', locator: { kind: 'field', owner: 'work', field: 'workId' } },
     refs: [

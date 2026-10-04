@@ -661,7 +661,7 @@ export const ADOPTION_EXTENSIONS: readonly AdoptionExtensionSpec[] = Object.free
   {
     id: 'adaptation-root-lifecycle',
     target: 'adaptationProjects',
-    entrypoints: ['src/lib/adaptation/source-manifest.ts', 'src/lib/adaptation/completion.ts', 'src/lib/adaptation/analysis.ts', 'src/lib/screenplay/production.ts', 'src/lib/screenplay/release.ts', 'src/lib/comic/production.ts', 'src/lib/comic/release.ts', 'src/lib/comic/authoring.ts', 'src/lib/motion-drama/service.ts', 'src/lib/motion-drama/release.ts'],
+    entrypoints: ['src/lib/screenplay/existing-script-import.ts', 'src/lib/adaptation/source-manifest.ts', 'src/lib/adaptation/completion.ts', 'src/lib/adaptation/analysis.ts', 'src/lib/screenplay/production.ts', 'src/lib/screenplay/release.ts', 'src/lib/comic/production.ts', 'src/lib/comic/release.ts', 'src/lib/comic/authoring.ts', 'src/lib/motion-drama/service.ts', 'src/lib/motion-drama/release.ts'],
     policyRegistry: 'PROJECT_TABLES + ADOPTION_SCHEMAS + adaptation state machine + source manifest CAS',
     reason: '改编创建、来源重同步、Brief/Plan 确认与阶段推进必须同步校验来源 manifest、目标 Work 和 revision；模型可编辑字段仍只作为候选进入正式确认服务。',
     reviewAfter: '2027-08-01',
@@ -669,9 +669,9 @@ export const ADOPTION_EXTENSIONS: readonly AdoptionExtensionSpec[] = Object.free
   {
     id: 'adaptation-source-manifest-lifecycle',
     target: 'adaptationSourceUnits',
-    entrypoints: ['src/lib/adaptation/source-manifest.ts'],
+    entrypoints: ['src/lib/screenplay/existing-script-import.ts', 'src/lib/adaptation/source-manifest.ts'],
     policyRegistry: 'PROJECT_TABLES + immutable source manifest policy + canonical chapter sequence',
-    reason: '来源单元是创建或显式同步时原子追加的不可变证据，不是可由模型逐行采纳的内容表。',
+    reason: '来源单元是创建或显式同步时原子追加的不可变证据；已有剧本导入只接受作者原文快照及确定性解析，无模型调用。',
     reviewAfter: '2027-08-01',
   },
   {
@@ -701,7 +701,7 @@ export const ADOPTION_EXTENSIONS: readonly AdoptionExtensionSpec[] = Object.free
   {
     id: 'screenplay-scene-lifecycle',
     target: 'screenplayScenes',
-    entrypoints: ['src/lib/screenplay/service.ts', 'src/lib/screenplay/adoption.ts', 'src/lib/screenplay/production.ts'],
+    entrypoints: ['src/lib/screenplay/existing-script-import.ts', 'src/lib/screenplay/service.ts', 'src/lib/screenplay/adoption.ts', 'src/lib/screenplay/production.ts'],
     policyRegistry: 'PROJECT_TABLES + FIELD_REGISTRY + ADOPTION_SCHEMAS + screenplay block validator + adaptation freshness CAS',
     reason: '剧本场景的创建、排序、拆分、锁定和删除需要跨场景唯一约束、来源版本与块级引用校验；AI 批次仍须经同一 validator 原子采纳。',
     reviewAfter: '2027-08-01',

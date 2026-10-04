@@ -42,6 +42,7 @@ async function requireRoot(scopeInput: WorkspaceScope, expectedRevision?: number
   const scope = await resolveScope({ scope: scopeInput })
   const root = await db.adaptationProjects.where('workId').equals(scope.workId).first()
   if (!root?.id || root.medium !== 'screenplay' || root.projectId !== scope.projectId || root.worldId !== scope.worldId) throw new Error('[screenplay-production] 当前 Work 不是有效剧本改编')
+  if (root.sourceSelectionMode === 'existing-script') throw new Error('[screenplay] 已有剧本 Phase 1 仅支持导入与手动修订，尚未开放 AI 生产或审校')
   if (expectedRevision != null && root.revision !== expectedRevision) throw new Error('[screenplay-production] 改编根已变化，请刷新')
   if (editable && root.status === 'complete') throw new Error('[screenplay-production] 已发布剧本必须先重新打开审校')
   return { scope, root: root as AdaptationProject & { id: number } }

@@ -308,12 +308,12 @@ AI 输出经 `adopt({ target, data })` 写回,只有这里登记的字段可写(
 | `workspace-root-lifecycle` | `projects` | `PROJECT_TABLES + workspace purpose + import trust + world lifecycle` | `src/lib/export/registry-import.ts`<br/>`src/lib/memory/workspace-projection.ts`<br/>`src/lib/world-engine/world-package.ts`<br/>`src/lib/workspace/lifecycle.ts`<br/>`src/lib/workspace/ownership.ts`<br/>`src/lib/world-engine/releases.ts`<br/>`src/lib/workspace/works.ts`<br/>`src/lib/workspace/create-workspace.ts`<br/>`src/lib/world-engine/derivation.ts`<br/>`src/lib/world-engine/promotion.ts`<br/>`src/lib/adaptation/source-manifest.ts` | 2027-08-01 |
 | `world-root-lifecycle` | `worlds` | `PROJECT_TABLES refs + world package trust + world release lifecycle` | `src/lib/world-engine/world-package.ts`<br/>`src/lib/workspace/lifecycle.ts`<br/>`src/lib/workspace/ownership.ts`<br/>`src/lib/world-engine/releases.ts`<br/>`src/lib/workspace/create-workspace.ts`<br/>`src/lib/world-engine/derivation.ts`<br/>`src/lib/world-engine/promotion.ts`<br/>`src/lib/world-engine/draft.ts` | 2027-08-01 |
 | `work-root-lifecycle` | `works` | `PROJECT_TABLES refs + WorkspaceScope + stable work code + narrative lifecycle` | `src/lib/memory/workspace-projection.ts`<br/>`src/lib/workspace/lifecycle.ts`<br/>`src/lib/workspace/ownership.ts`<br/>`src/lib/workspace/works.ts`<br/>`src/lib/workspace/create-workspace.ts`<br/>`src/lib/world-engine/derivation.ts`<br/>`src/lib/adaptation/source-manifest.ts`<br/>`src/lib/adaptation/completion.ts`<br/>`src/lib/short-novel/service.ts`<br/>`src/lib/screenplay/release.ts`<br/>`src/lib/comic/release.ts` | 2027-08-01 |
-| `adaptation-root-lifecycle` | `adaptationProjects` | `PROJECT_TABLES + ADOPTION_SCHEMAS + adaptation state machine + source manifest CAS` | `src/lib/adaptation/source-manifest.ts`<br/>`src/lib/adaptation/completion.ts`<br/>`src/lib/adaptation/analysis.ts`<br/>`src/lib/screenplay/production.ts`<br/>`src/lib/screenplay/release.ts`<br/>`src/lib/comic/production.ts`<br/>`src/lib/comic/release.ts`<br/>`src/lib/comic/authoring.ts`<br/>`src/lib/motion-drama/service.ts`<br/>`src/lib/motion-drama/release.ts` | 2027-08-01 |
-| `adaptation-source-manifest-lifecycle` | `adaptationSourceUnits` | `PROJECT_TABLES + immutable source manifest policy + canonical chapter sequence` | `src/lib/adaptation/source-manifest.ts` | 2027-08-01 |
+| `adaptation-root-lifecycle` | `adaptationProjects` | `PROJECT_TABLES + ADOPTION_SCHEMAS + adaptation state machine + source manifest CAS` | `src/lib/screenplay/existing-script-import.ts`<br/>`src/lib/adaptation/source-manifest.ts`<br/>`src/lib/adaptation/completion.ts`<br/>`src/lib/adaptation/analysis.ts`<br/>`src/lib/screenplay/production.ts`<br/>`src/lib/screenplay/release.ts`<br/>`src/lib/comic/production.ts`<br/>`src/lib/comic/release.ts`<br/>`src/lib/comic/authoring.ts`<br/>`src/lib/motion-drama/service.ts`<br/>`src/lib/motion-drama/release.ts` | 2027-08-01 |
+| `adaptation-source-manifest-lifecycle` | `adaptationSourceUnits` | `PROJECT_TABLES + immutable source manifest policy + canonical chapter sequence` | `src/lib/screenplay/existing-script-import.ts`<br/>`src/lib/adaptation/source-manifest.ts` | 2027-08-01 |
 | `adaptation-source-fact-lifecycle` | `adaptationSourceFacts` | `PROJECT_TABLES + FIELD_REGISTRY + closed source-fact contract + adaptation manifest CAS` | `src/lib/adaptation/analysis.ts` | 2027-09-01 |
 | `adaptation-causal-edge-lifecycle` | `adaptationCausalEdges` | `PROJECT_TABLES + FIELD_REGISTRY + closed causal-edge contract + same-manifest fact graph validator` | `src/lib/adaptation/analysis.ts` | 2027-09-01 |
 | `adaptation-decision-lifecycle` | `adaptationDecisions` | `PROJECT_TABLES + FIELD_REGISTRY + closed adaptation-decision contract + adaptation manifest CAS` | `src/lib/adaptation/analysis.ts` | 2027-09-01 |
-| `screenplay-scene-lifecycle` | `screenplayScenes` | `PROJECT_TABLES + FIELD_REGISTRY + ADOPTION_SCHEMAS + screenplay block validator + adaptation freshness CAS` | `src/lib/screenplay/service.ts`<br/>`src/lib/screenplay/adoption.ts`<br/>`src/lib/screenplay/production.ts` | 2027-08-01 |
+| `screenplay-scene-lifecycle` | `screenplayScenes` | `PROJECT_TABLES + FIELD_REGISTRY + ADOPTION_SCHEMAS + screenplay block validator + adaptation freshness CAS` | `src/lib/screenplay/existing-script-import.ts`<br/>`src/lib/screenplay/service.ts`<br/>`src/lib/screenplay/adoption.ts`<br/>`src/lib/screenplay/production.ts` | 2027-08-01 |
 | `screenplay-beat-lifecycle` | `screenplayBeats` | `PROJECT_TABLES + FIELD_REGISTRY + closed Beat contract + adaptation/source/decision CAS` | `src/lib/screenplay/production.ts` | 2027-09-01 |
 | `screenplay-scene-card-lifecycle` | `screenplaySceneCards` | `PROJECT_TABLES + FIELD_REGISTRY + closed Scene Card contract + Beat/source CAS` | `src/lib/screenplay/production.ts`<br/>`src/lib/screenplay/service.ts` | 2027-09-01 |
 | `screenplay-review-issue-lifecycle` | `screenplayReviewIssues` | `PROJECT_TABLES + FIELD_REGISTRY + scene/block/revision evidence validator` | `src/lib/screenplay/production.ts`<br/>`src/lib/screenplay/service.ts` | 2027-09-01 |
@@ -439,7 +439,7 @@ AI 输出经 `adopt({ target, data })` 写回,只有这里登记的字段可写(
 - `src/lib/open-world/harness.ts:139 · chat`
 - `src/lib/product-production/authoring-consultation.ts:169 · chat`
 - `src/lib/product-production/capabilities.ts:314 · chat`
-- `src/lib/screenplay/durable-production.ts:449 · chat`
+- `src/lib/screenplay/durable-production.ts:450 · chat`
 - `src/lib/ttrpg/gm-actor-harness.ts:481 · chat`
 - `src/lib/ttrpg/gm-harness.ts:542 · chat`
 
@@ -499,4 +499,4 @@ AI 输出经 `adopt({ target, data })` 写回,只有这里登记的字段可写(
 
 ---
 
-生成时间基准:commit `63af22db`
+生成时间基准:commit `cf185f3`
