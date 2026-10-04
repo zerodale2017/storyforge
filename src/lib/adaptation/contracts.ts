@@ -213,7 +213,16 @@ export function assertAdaptationProjectInvariant(root: AdaptationProject, target
   if (root.lineageMode === 'detached' && (root.sourceWorkId != null || root.sourceOutlineRootId != null || root.sourceStartChapterId != null || root.sourceEndChapterId != null)) {
     throw new Error('[adaptation] detached 改编不得保留本地来源引用')
   }
-  if (root.sourceSelectionMode === 'entire-work' || root.sourceSelectionMode === 'chapters') {
+  if (root.sourceSelectionMode === 'existing-script') {
+    const metadata = root.existingScript
+    if (root.medium !== 'screenplay' || root.lineageMode !== 'detached' || root.sourceCoverage !== 'full-text'
+      || !metadata || metadata.version !== 1 || typeof metadata.sourceName !== 'string' || !metadata.sourceName.trim() || metadata.sourceName.length > 500
+      || Object.keys(metadata).some(key => !['version', 'sourceName'].includes(key))
+      || root.activeSourceManifestVersion !== 1 || root.brief !== null || root.plan !== null
+      || root.briefSourceManifestVersion !== null || root.planSourceManifestVersion !== null || root.status !== 'review') {
+      throw new Error('[adaptation] 已有剧本必须保留独立原文来源，不得伪造小说、Brief 或 Plan')
+    }
+  } else if (root.sourceSelectionMode === 'entire-work' || root.sourceSelectionMode === 'chapters') {
     if (root.sourceOutlineRootId != null || root.sourceStartChapterId != null || root.sourceEndChapterId != null) throw new Error('[adaptation] 来源选择字段组合非法')
   } else if (root.sourceSelectionMode === 'outline-subtree') {
     if (root.lineageMode === 'linked' && root.sourceWorkId != null && root.sourceOutlineRootId == null) throw new Error('[adaptation] outline-subtree 缺少根节点')
@@ -225,6 +234,7 @@ export function assertAdaptationProjectInvariant(root: AdaptationProject, target
   } else {
     throw new Error('[adaptation] 未知来源选择模式')
   }
+  if (root.sourceSelectionMode !== 'existing-script' && root.existingScript != null) throw new Error('[adaptation] 仅已有剧本允许导入来源元数据')
   if (root.brief) assertAdaptationBriefV1(root.brief)
   if (root.plan) assertAdaptationPlanV1(root.plan)
   if (targetWork && (targetWork.id !== root.workId || effectiveWorkKind(targetWork) !== root.medium)) throw new Error('[adaptation] medium 与目标 Work kind 不匹配')

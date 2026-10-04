@@ -45,12 +45,12 @@ export function renderScreenplayFountainV1(document: ScreenplayRenderDocumentV1)
     }
     lines.push(`.${heading(scene)}`, '')
     for (const block of scene.blocks) {
-      if (block.type === 'note' && !document.includeNotes) continue
+      if (block.type === 'note' && !document.includeNotes && !block.source?.audienceVisible) continue
       if (block.type === 'character') lines.push(cue(block))
       else if (block.type === 'parenthetical') lines.push(`(${block.text.replace(/^\(|\)$/g, '')})`)
       else if (block.type === 'transition') lines.push(`> ${block.text.toLocaleUpperCase()}`)
       else if (block.type === 'shot') lines.push(`!! ${block.text}`)
-      else if (block.type === 'note') lines.push(`[[${block.text}]]`)
+      else if (block.type === 'note') lines.push(block.source?.audienceVisible ? block.text : `[[${block.text}]]`)
       else lines.push(block.text)
       lines.push('')
     }
@@ -71,13 +71,13 @@ export function renderScreenplayFdxV1(document: ScreenplayRenderDocumentV1): str
   for (const scene of orderedScenes(document)) {
     paragraphs.push(fdxParagraph('Scene Heading', heading(scene), scene.sceneNumber))
     for (const block of scene.blocks) {
-      if (block.type === 'note' && !document.includeNotes) continue
+      if (block.type === 'note' && !document.includeNotes && !block.source?.audienceVisible) continue
       if (block.type === 'character') paragraphs.push(fdxParagraph('Character', cue(block)))
       else if (block.type === 'parenthetical') paragraphs.push(fdxParagraph('Parenthetical', `(${block.text.replace(/^\(|\)$/g, '')})`))
       else if (block.type === 'dialogue') paragraphs.push(fdxParagraph('Dialogue', block.text))
       else if (block.type === 'transition') paragraphs.push(fdxParagraph('Transition', block.text))
       else if (block.type === 'shot') paragraphs.push(fdxParagraph('Shot', block.text))
-      else if (block.type === 'note') paragraphs.push(fdxParagraph('General', `[[${block.text}]]`))
+      else if (block.type === 'note') paragraphs.push(block.source?.audienceVisible ? fdxParagraph('Action', block.text) : fdxParagraph('General', `[[${block.text}]]`))
       else paragraphs.push(fdxParagraph('Action', block.text))
     }
   }
@@ -94,7 +94,7 @@ export function renderScreenplayFdxV1(document: ScreenplayRenderDocumentV1): str
 
 export function renderScreenplayPrintHtmlV1(document: ScreenplayRenderDocumentV1): string {
   const body = orderedScenes(document).map(scene => `<section class="scene"><h2>${xml(heading(scene))}</h2>${scene.blocks.flatMap(block => {
-    if (block.type === 'note' && !document.includeNotes) return []
+    if (block.type === 'note' && !document.includeNotes && !block.source?.audienceVisible) return []
     const value = block.type === 'character' ? cue(block) : block.text
     return [`<p class="${block.type}">${xml(block.type === 'parenthetical' ? `(${value.replace(/^\(|\)$/g, '')})` : value).replace(/\n/g, '<br>')}</p>`]
   }).join('')}</section>`).join('')

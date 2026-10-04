@@ -1,6 +1,18 @@
 export type ScreenplayCharacterExtension = 'V.O.' | 'O.S.' | 'O.C.' | "CONT'D"
 
-export type ScreenplayBlock =
+export interface ScreenplayBlockSourceV1 {
+  version: 1
+  kind: 'action' | 'sound' | 'screen' | 'directing' | 'shot' | 'transition' | 'dialogue' | 'character' | 'parenthetical'
+  label: string
+  audienceVisible: boolean
+  startLine: number
+  endLine: number
+  /** UTF-16 offsets into the immutable imported document, excluding delimiters. */
+  start: number
+  end: number
+}
+
+export type ScreenplayBlock = { source?: ScreenplayBlockSourceV1 } & (
   | { id: string; type: 'action'; text: string }
   | { id: string; type: 'character'; characterId?: number | null; name: string; extension?: ScreenplayCharacterExtension; dualDialogue?: boolean }
   | { id: string; type: 'parenthetical'; text: string }
@@ -8,6 +20,7 @@ export type ScreenplayBlock =
   | { id: string; type: 'transition'; text: string }
   | { id: string; type: 'shot'; text: string }
   | { id: string; type: 'note'; text: string }
+)
 
 export type ScreenplaySceneStatus = 'card' | 'draft' | 'reviewed' | 'locked'
 

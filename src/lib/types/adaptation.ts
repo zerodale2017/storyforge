@@ -120,7 +120,9 @@ interface AdaptationProjectBase {
   sourceWorkId: number | null
   lineageMode: 'linked' | 'detached'
   status: AdaptationStatus
-  sourceSelectionMode: AdaptationSourceSelectionV1['mode']
+  sourceSelectionMode: AdaptationSourceSelectionV1['mode'] | 'existing-script'
+  /** Original screenplay is its own canonical source, never a fabricated novel. */
+  existingScript?: { version: 1; sourceName: string }
   sourceOutlineRootId: number | null
   sourceStartChapterId: number | null
   sourceEndChapterId: number | null
@@ -157,7 +159,7 @@ export type AdaptationProject = AdaptationProjectBase & (
     }
 )
 
-export type AdaptationSourceUnitKind = 'work' | 'outline-node' | 'chapter'
+export type AdaptationSourceUnitKind = 'work' | 'outline-node' | 'chapter' | 'screenplay'
 
 export interface AdaptationSourceUnit {
   id?: number
@@ -167,6 +169,8 @@ export interface AdaptationSourceUnit {
   adaptationProjectId: number
   manifestVersion: number
   sourceKind: AdaptationSourceUnitKind
+  /** Immutable decoded source text; only legal for existing-script screenplay units. */
+  sourceContent?: string
   sourceOutlineNodeId: number | null
   sourceChapterId: number | null
   sourceUnitKey: string

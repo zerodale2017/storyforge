@@ -1,3 +1,6 @@
+import Dexie from 'dexie'
+import { assertExistingScriptSourceV1 } from './existing-script-source'
+import { serializeExistingScreenplayV1 } from './existing-script-parser'
 import { nanoid } from 'nanoid'
 import { db } from '../db/schema'
 import type { AdaptationProject, ScreenplayBlock, ScreenplayScene, ScreenplaySceneStatus, WorkspaceScope } from '../types'
@@ -50,6 +53,7 @@ export async function listScreenplayScenes(scopeInput: WorkspaceScope): Promise<
 
 export async function createScreenplayScene(scopeInput: WorkspaceScope, draft: ScreenplaySceneDraftV1): Promise<ScreenplayScene> {
   const { scope, adaptation } = await requireScreenplay(scopeInput, true)
+  if (adaptation.sourceSelectionMode === 'existing-script') throw new Error('[screenplay-import] Phase 1 保留原有场次与段落结构')
   const freshness = await inspectAdaptationFreshness(adaptation.id!)
   if (freshness.status !== 'unchanged') throw new Error('[screenplay] 来源已变化或缺失；可编辑旧场景，但不能创建新正式场景')
   if (!['producing', 'review'].includes(adaptation.status)) throw new Error('[screenplay] 请先确认 Brief/Plan 并开始剧本生产')
@@ -99,11 +103,12 @@ export async function updateScreenplayScene(input: {
 }): Promise<ScreenplayScene> {
   const { scope, adaptation } = await requireScreenplay(input.scope, true)
   return db.transaction('rw', scopeTransactionTables(db.screenplayScenes, db.adaptationProjects, db.adaptationSourceUnits, db.workCharacterBindings), async () => {
-    await requireScreenplay(input.scope, true)
+    const { adaptation: currentRoot } = await requireScreenplay(input.scope, true)
+    if (currentRoot.revision !== adaptation.revision || currentRoot.activeSourceManifestHash !== adaptation.activeSourceManifestHash) throw new Error('[screenplay] 改编根或来源已变化，请刷新')
     const scene = await db.screenplayScenes.get(input.sceneId)
     if (!scene || !await assertRecordInScope(scope, 'screenplayScenes', scene, { owner: 'work' }) || scene.adaptationProjectId !== adaptation.id) throw new Error('[screenplay] 场景不存在或越界')
     if (scene.revision !== input.expectedRevision) throw new Error('[screenplay] 场景已变化，请刷新')
-    if (scene.status === 'locked' && input.patch.status !== 'draft') throw new Error('[screenplay] 锁定场景必须先解锁')
+    if (scene.status === 'locked' && (input.patch.status !== 'draft' || Object.keys(input.patch).some(key => key !== 'status'))) throw new Error('[screenplay] 锁定场景必须先解锁')
     const nextRevision = scene.revision + 1
     const changesContent = Object.keys(input.patch).some(key => key !== 'status')
     const next: ScreenplayScene = {
@@ -119,6 +124,14 @@ export async function updateScreenplayScene(input: {
     }
     const deps = await validationDependencies(adaptation, next.sourceReviewManifestVersion)
     assertValidScreenplaySceneV1({ scene: next, adaptation, ...deps })
+    if (adaptation.sourceSelectionMode === 'existing-script') {
+      if (Object.keys(input.patch).some(key => !['blocks', 'status', 'summary', 'estimatedSeconds'].includes(key))) throw new Error('[screenplay-import] Phase 1 保留原有场次与段落结构')
+      const units = await db.adaptationSourceUnits.where('adaptationProjectId').equals(adaptation.id!).toArray()
+      const original = await Dexie.waitFor(assertExistingScriptSourceV1(adaptation, units))
+      if (next.sourceUnitIds.length !== 1 || next.sourceUnitIds[0] !== units[0].id) throw new Error('[screenplay-import] 原文来源引用非法')
+      const rows = await db.screenplayScenes.where('adaptationProjectId').equals(adaptation.id!).sortBy('order')
+      serializeExistingScreenplayV1(original, rows.map(row => row.id === next.id ? next : row))
+    }
     const collisions = await db.screenplayScenes.where('[adaptationProjectId+episodeNumber+sceneNumber]').equals([adaptation.id!, next.episodeNumber, next.sceneNumber]).toArray()
     if (collisions.some(row => row.id !== scene.id)) throw new Error('[screenplay] 同集场景号重复')
     await db.screenplayScenes.put(next)
@@ -132,8 +145,10 @@ export async function setScreenplaySceneLocked(input: { scope: WorkspaceScope; s
 
 export async function deleteScreenplayScene(input: { scope: WorkspaceScope; sceneId: number }): Promise<void> {
   const { scope, adaptation } = await requireScreenplay(input.scope, true)
+  if (adaptation.sourceSelectionMode === 'existing-script') throw new Error('[screenplay-import] Phase 1 保留原有场次与段落结构')
   await db.transaction('rw', scopeTransactionTables(db.screenplayScenes, db.adaptationProjects), async () => {
-    await requireScreenplay(input.scope, true)
+    const { adaptation: currentRoot } = await requireScreenplay(input.scope, true)
+    if (currentRoot.revision !== adaptation.revision || currentRoot.activeSourceManifestHash !== adaptation.activeSourceManifestHash) throw new Error('[screenplay] 改编根或来源已变化，请刷新')
     const scene = await db.screenplayScenes.get(input.sceneId)
     if (!scene || !await assertRecordInScope(scope, 'screenplayScenes', scene, { owner: 'work' }) || scene.adaptationProjectId !== adaptation.id) throw new Error('[screenplay] 场景不存在或越界')
     if (scene.status === 'locked') throw new Error('[screenplay] 锁定场景必须先解锁才能删除')
@@ -143,6 +158,7 @@ export async function deleteScreenplayScene(input: { scope: WorkspaceScope; scen
 
 export async function reorderScreenplayScenes(input: { scope: WorkspaceScope; orderedSceneIds: number[] }): Promise<ScreenplayScene[]> {
   const { adaptation } = await requireScreenplay(input.scope, true)
+  if (adaptation.sourceSelectionMode === 'existing-script') throw new Error('[screenplay-import] Phase 1 保留原有场次与段落结构')
   if (new Set(input.orderedSceneIds).size !== input.orderedSceneIds.length) throw new Error('[screenplay] 排序包含重复场景')
   return db.transaction('rw', scopeTransactionTables(db.screenplayScenes, db.adaptationProjects), async () => {
     await requireScreenplay(input.scope, true)
@@ -171,6 +187,8 @@ async function copySceneCard(scope: WorkspaceScope, original: ScreenplayScene, n
 }
 
 export async function duplicateScreenplayScene(input: { scope: WorkspaceScope; sceneId: number }): Promise<ScreenplayScene> {
+  const { adaptation: structureRoot } = await requireScreenplay(input.scope, true)
+  if (structureRoot.sourceSelectionMode === 'existing-script') throw new Error('[screenplay-import] Phase 1 保留原有场次与段落结构')
   return db.transaction('rw', structureTables(), async () => {
     const scenes = await listScreenplayScenes(input.scope)
     const scene = scenes.find(row => row.id === input.sceneId)
@@ -191,6 +209,8 @@ export async function duplicateScreenplayScene(input: { scope: WorkspaceScope; s
 }
 
 export async function splitScreenplayScene(input: { scope: WorkspaceScope; sceneId: number; blockIndex: number; expectedRevision: number }): Promise<[ScreenplayScene, ScreenplayScene]> {
+  const { adaptation: structureRoot } = await requireScreenplay(input.scope, true)
+  if (structureRoot.sourceSelectionMode === 'existing-script') throw new Error('[screenplay-import] Phase 1 保留原有场次与段落结构')
   return db.transaction('rw', structureTables(), async () => {
     const scenes = await listScreenplayScenes(input.scope)
     const scene = scenes.find(row => row.id === input.sceneId)
@@ -218,6 +238,7 @@ export async function splitScreenplayScene(input: { scope: WorkspaceScope; scene
 
 export async function mergeScreenplayScenes(input: { scope: WorkspaceScope; firstSceneId: number; secondSceneId: number; expectedFirstRevision: number; expectedSecondRevision: number }): Promise<ScreenplayScene> {
   const { adaptation } = await requireScreenplay(input.scope, true)
+  if (adaptation.sourceSelectionMode === 'existing-script') throw new Error('[screenplay-import] Phase 1 保留原有场次与段落结构')
   return db.transaction('rw', structureTables(), async () => {
     await requireScreenplay(input.scope, true)
     const rows = await db.screenplayScenes.where('adaptationProjectId').equals(adaptation.id!).sortBy('order')

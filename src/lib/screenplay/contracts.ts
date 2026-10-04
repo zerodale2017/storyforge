@@ -36,6 +36,18 @@ export function validateScreenplayBlocksV1(blocks: ScreenplayBlock[]): Screenpla
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(block.id)) issue(issues, 'error', 'block-id', '块 stable id 非法。', block.id)
     if (ids.has(block.id)) issue(issues, 'error', 'block-id-duplicate', '场景内块 id 重复。', block.id)
     ids.add(block.id)
+    if (block.source !== undefined) {
+      const source = block.source
+      const kinds: Record<string, string> = { action: 'action', sound: 'note', screen: 'note', directing: 'note', shot: 'shot', transition: 'transition', dialogue: 'dialogue', character: 'character', parenthetical: 'parenthetical' }
+      if (!source || typeof source !== 'object' || source.version !== 1 || kinds[source.kind] !== block.type
+        || typeof source.label !== 'string' || source.label.length > 200
+        || source.audienceVisible !== (source.kind !== 'directing')
+        || !Number.isInteger(source.startLine) || source.startLine < 1 || !Number.isInteger(source.endLine) || source.endLine < source.startLine
+        || !Number.isInteger(source.start) || source.start < 0 || !Number.isInteger(source.end) || source.end <= source.start || source.end > 5_000_000
+        || Object.keys(source).some(key => !['version', 'kind', 'label', 'audienceVisible', 'startLine', 'endLine', 'start', 'end'].includes(key))) {
+        issue(issues, 'error', 'block-source', '段落来源元数据非法。', block.id)
+      }
+    }
     const text = block.type === 'character' ? block.name : block.text
     if (typeof text !== 'string' || !text.trim() || text.length > 20_000) issue(issues, 'error', 'block-text', '块文本必须为 1～20000 字符。', block.id)
     if (block.type === 'character') {
@@ -65,7 +77,7 @@ export function validateScreenplayBlocksV1(blocks: ScreenplayBlock[]): Screenpla
     pendingDual = false
   }
   if (pendingDual || activeCharacter) issue(issues, 'error', 'character-without-dialogue', '场景末尾角色 cue 缺少对白。')
-  const totalLength = blocks.reduce((sum, block) => sum + (block.type === 'character' ? block.name.length : block.text.length), 0)
+  const totalLength = blocks.reduce((sum, block) => sum + (typeof (block?.type === 'character' ? block.name : block?.text) === 'string' ? (block.type === 'character' ? block.name.length : block.text.length) : 0), 0)
   if (totalLength > 256_000) issue(issues, 'error', 'scene-size', '单场内容超过 256000 字符上限。')
   return { valid: !issues.some(item => item.level === 'error'), issues }
 }
@@ -86,14 +98,20 @@ export function validateScreenplaySceneV1(input: {
     if (adaptation.targetSpec.format === 'film' && scene.episodeNumber !== 1) issue(issues, 'error', 'film-episode', '电影剧本场景集号固定为 1。')
     if (adaptation.targetSpec.episodeCount != null && scene.episodeNumber > adaptation.targetSpec.episodeCount) issue(issues, 'error', 'episode-range', '场景集号超过目标集数。')
   }
+  if (!['card', 'draft', 'reviewed', 'locked'].includes(scene.status) || !Number.isInteger(scene.revision) || scene.revision < 1) issue(issues, 'error', 'scene-state', '场景状态或修订号非法。')
   if (!Number.isInteger(scene.sceneNumber) || scene.sceneNumber < 1 || !Number.isInteger(scene.order) || scene.order < 0) issue(issues, 'error', 'scene-order', '场景号或全剧顺序非法。')
   if (!['INT', 'EXT', 'INT_EXT'].includes(scene.intExt) || !scene.location.trim() || !scene.timeOfDay.trim()) issue(issues, 'error', 'heading', '场景标题必须包含内外景、地点和时间。')
   if (!Number.isFinite(scene.estimatedSeconds) || scene.estimatedSeconds <= 0 || scene.estimatedSeconds > 86_400) issue(issues, 'error', 'duration', '场景预计时长必须在 1～86400 秒。')
   if (!Number.isInteger(scene.sourceReviewManifestVersion) || scene.sourceReviewManifestVersion < 1) issue(issues, 'error', 'source-version', '来源审查版本非法。')
   if (!Array.isArray(scene.sourceUnitIds) || !scene.sourceUnitIds.length || new Set(scene.sourceUnitIds).size !== scene.sourceUnitIds.length || scene.sourceUnitIds.some(id => !input.sourceUnitIds.has(id))) issue(issues, 'error', 'source-units', '场景必须引用同一改编清单中的有效来源单元。')
-  const planSection = adaptation.plan?.sections.find(section => section.stableKey === scene.planSectionKey)
-  if (!planSection || adaptation.planSourceManifestVersion !== adaptation.activeSourceManifestVersion) issue(issues, 'error', 'plan-section', '场景必须引用当前已确认计划中的结构段。')
-  else if (planSection.episodeNumber != null && planSection.episodeNumber !== scene.episodeNumber) issue(issues, 'error', 'plan-episode', '场景集号与计划结构段不一致。')
+  if (adaptation.sourceSelectionMode === 'existing-script') {
+    if (scene.planSectionKey !== '' || scene.sourceReviewManifestVersion !== adaptation.activeSourceManifestVersion || scene.blocks.some(block => !block.source)) issue(issues, 'error', 'import-provenance', '导入场次须保留来源，不需要改编计划。')
+  } else {
+    if (scene.blocks.some(block => block.source !== undefined)) issue(issues, 'error', 'import-provenance', '小说改编场景不得伪造导入来源。')
+    const planSection = adaptation.plan?.sections.find(section => section.stableKey === scene.planSectionKey)
+    if (!planSection || adaptation.planSourceManifestVersion !== adaptation.activeSourceManifestVersion) issue(issues, 'error', 'plan-section', '场景必须引用当前已确认计划中的结构段。')
+    else if (planSection.episodeNumber != null && planSection.episodeNumber !== scene.episodeNumber) issue(issues, 'error', 'plan-episode', '场景集号与计划结构段不一致。')
+  }
   const boundIds = new Set(input.bindings.filter(binding => binding.workId === scene.workId).map(binding => binding.characterId))
   for (const block of scene.blocks) {
     if (block.type === 'character' && block.characterId != null && !boundIds.has(block.characterId)) issue(issues, 'error', 'cast-binding', `角色“${block.name}”尚未绑定到目标 Work。`, block.id)
